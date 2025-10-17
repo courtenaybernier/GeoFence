@@ -1,12 +1,20 @@
 // GeoFence App
 let map, marker, polygon, drawnPoints = [], isDrawing = false, isMonitoring = false, monitorInterval = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+// Wait for Leaflet to load
+function initApp() {
+  if (typeof L === 'undefined') {
+    setTimeout(initApp, 100);
+    return;
+  }
+  
   createUI();
   initializeMap();
   requestLocation();
   setInterval(requestLocation, 5000);
-});
+}
+
+document.addEventListener('DOMContentLoaded', initApp);
 
 function createUI() {
   const style = document.createElement('style');
