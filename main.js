@@ -8,54 +8,17 @@ function initApp() {
     return;
   }
   
-  createUI();
   initializeMap();
   requestLocation();
   setInterval(requestLocation, 5000);
-}
-
-document.addEventListener('DOMContentLoaded', initApp);
-
-function createUI() {
-  const style = document.createElement('style');
-  style.textContent = `
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; height: 100vh; display: flex; flex-direction: column; }
-    #header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
-    h1 { font-size: 24px; margin-bottom: 10px; }
-    #coords { font-size: 14px; opacity: 0.9; }
-    #map { flex: 1; }
-    #controls { padding: 15px; background: white; box-shadow: 0 -2px 8px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; }
-    button { flex: 1; min-width: 120px; padding: 12px 20px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; }
-    .btn-draw { background: #667eea; color: white; }
-    .btn-finish { background: #4caf50; color: white; }
-    .btn-monitor { background: #f44336; color: white; }
-    .btn-reset { background: #9e9e9e; color: white; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    #status { width: 100%; padding: 10px; background: #e3f2fd; color: #1976d2; border-radius: 6px; font-size: 13px; text-align: center; }
-  `;
-  document.head.appendChild(style);
-
-  document.getElementById('app').innerHTML = `
-    <div id="header">
-      <h1>🗺️ GeoFence App</h1>
-      <div id="coords">Waiting for GPS location...</div>
-    </div>
-    <div id="map"></div>
-    <div id="controls">
-      <div id="status">Click "Start Drawing" to create a boundary</div>
-      <button class="btn-draw" id="btnDraw">Start Drawing</button>
-      <button class="btn-finish" id="btnFinish" disabled>Finish Drawing</button>
-      <button class="btn-monitor" id="btnMonitor" disabled>Start Monitoring</button>
-      <button class="btn-reset" id="btnReset">Reset</button>
-    </div>
-  `;
-
+  
   document.getElementById('btnDraw').onclick = startDrawing;
   document.getElementById('btnFinish').onclick = finishDrawing;
   document.getElementById('btnMonitor').onclick = startMonitoring;
   document.getElementById('btnReset').onclick = resetApp;
 }
+
+document.addEventListener('DOMContentLoaded', initApp);
 
 function initializeMap() {
   map = L.map('map').setView([37.7749, -122.4194], 13);
