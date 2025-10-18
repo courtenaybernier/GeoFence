@@ -28,68 +28,116 @@ function initializeMap() {
     attribution: '© OpenStreetMap'
   }).addTo(map);
   map.on('click', handleMapClick);
+  
+  console.log('Map initialized');
+  document.getElementById('status').textContent = 'Map loaded. Requesting GPS location...';
 }
 
 function startWatchingLocation() {
   if (!navigator.geolocation) {
-    alert('Geolocation not supported by your browser');
+    document.getElementById('coords').textContent = '❌ Geolocation not supported';
+    document.getElementById('status').textContent = 'GPS not available - you can still draw on the map';
     return;
   }
 
-  // Use watchPosition for continuous tracking
-  watchId = navigator.geolocation.watchPosition(
+  console.log('Requesting location...');
+  document.getElementById('coords').textContent = '⏳ Requesting location permission...';
+
+  // First try to get current position immediately
+  navigator.geolocation.getCurrentPosition(
     (position) => {
-      currentLat = position.coords.latitude;
-      currentLng = position.coords.longitude;
-      const accuracy = position.coords.accuracy;
-
-      // Update coordinates display
-      document.getElementById('coords').textContent = 
-        `📍 ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)} (±${accuracy.toFixed(0)}m)`;
-
-      // Update or create marker
-      if (marker) {
-        marker.setLatLng([currentLat, currentLng]);
-      } else {
-        marker = L.marker([currentLat, currentLng]).addTo(map);
-        marker.bindPopup('📍 You are here').openPopup();
-      }
-
-      // Center map on your location (smooth pan)
-      map.setView([currentLat, currentLng], map.getZoom(), {
-        animate: true,
-        duration: 1
-      });
-
-      // Check boundary if monitoring
-      if (isMonitoring) {
-        checkBoundary(currentLat, currentLng);
-      }
+      console.log('Got initial position:', position);
+      updateLocation(position);
+      
+      // Then start watching for continuous updates
+      watchId = navigator.geolocation.watchPosition(
+        updateLocation,
+        handleLocationError,
+        { 
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 10000
+        }
+      );
     },
     (error) => {
-      console.error('Location error:', error);
-      let errorMsg = 'Location error: ';
-      switch(error.code) {
-        case error.PERMISSION_DENIED:
-          errorMsg += 'Permission denied. Please allow location access.';
-          break;
-        case error.POSITION_UNAVAILABLE:
-          errorMsg += 'Position unavailable. Check your GPS.';
-          break;
-        case error.TIMEOUT:
-          errorMsg += 'Request timeout. Retrying...';
-          break;
-        default:
-          errorMsg += error.message;
-      }
-      document.getElementById('status').textContent = errorMsg;
+      console.error('Initial position error:', error);
+      handleLocationError(error);
+      
+      // Still try to watch even if initial position fails
+      watchId = navigator.geolocation.watchPosition(
+        updateLocation,
+        handleLocationError,
+        { 
+          enableHighAccuracy: true,
+          maximumAge: 5000,  // Allow slightly cached position as fallback
+          timeout: 15000     // Longer timeout
+        }
+      );
     },
     { 
-      enableHighAccuracy: true,  // Use GPS
-      maximumAge: 0,             // Don't use cached position
-      timeout: 10000             // 10 second timeout
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 5000
     }
   );
+}
+
+function updateLocation(position) {
+  currentLat = position.coords.latitude;
+  currentLng = position.coords.longitude;
+  const accuracy = position.coords.accuracy;
+
+  console.log('Location update:', currentLat, currentLng, 'accuracy:', accuracy);
+
+  // Update coordinates display
+  document.getElementById('coords').textContent = 
+    `📍 ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)} (±${accuracy.toFixed(0)}m)`;
+
+  // Update or create marker
+  if (marker) {
+    marker.setLatLng([currentLat, currentLng]);
+  } else {
+    marker = L.marker([currentLat, currentLng]).addTo(map);
+    marker.bindPopup('📍 You are here').openPopup();
+    // First time getting location - center map with good zoom
+    map.setView([currentLat, currentLng], 16);
+  }
+
+  // Update status
+  document.getElementById('status').textContent = 'GPS tracking active. Click "Start Drawing" to create a boundary.';
+
+  // Check boundary if monitoring
+  if (isMonitoring) {
+    checkBoundary(currentLat, currentLng);
+  }
+}
+
+function handleLocationError(error) {
+  console.error('Location error:', error);
+  let errorMsg = '';
+  let coordsMsg = '❌ ';
+  
+  switch(error.code) {
+    case error.PERMISSION_DENIED:
+      errorMsg = '🚫 Location permission denied. Please allow location access in your browser settings.';
+      coordsMsg += 'Permission denied';
+      break;
+    case error.POSITION_UNAVAILABLE:
+      errorMsg = '📡 GPS position unavailable. Make sure GPS is enabled on your device.';
+      coordsMsg += 'Position unavailable';
+      break;
+    case error.TIMEOUT:
+      errorMsg = '⏱️ Location request timed out. Retrying...';
+      coordsMsg += 'Timeout (retrying...)';
+      break;
+    default:
+      errorMsg = `⚠️ Location error: ${error.message}`;
+      coordsMsg += error.message;
+  }
+  
+  document.getElementById('coords').textContent = coordsMsg;
+  document.getElementById('status').textContent = errorMsg + ' You can still draw manually on the map.';
 }
 
 function requestLocation() {
