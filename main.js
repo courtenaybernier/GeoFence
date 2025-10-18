@@ -132,12 +132,12 @@ function startDrawing() {
   document.getElementById('btnDraw').disabled = true;
   document.getElementById('btnFinish').disabled = false;
   document.getElementById('btnMonitor').disabled = true;
-  document.getElementById('status').textContent = 'Click on map to add boundary points (minimum 3)';
+  document.getElementById('status').textContent = 'Click on map to add boundary points (minimum 4)';
 }
 
 function finishDrawing() {
-  if (drawnPoints.length < 3) {
-    alert('You need at least 3 points to create a boundary!');
+  if (drawnPoints.length < 4) {
+    alert('You need at least 4 points to create a boundary!');
     return;
   }
 
