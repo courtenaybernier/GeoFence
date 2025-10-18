@@ -1,5 +1,7 @@
 // GeoFence App
 let map, marker, polygon, drawnPoints = [], isDrawing = false, isMonitoring = false, monitorInterval = null;
+let watchId = null;
+let currentLat = null, currentLng = null;
 
 // Wait for Leaflet to load
 function initApp() {
@@ -9,8 +11,7 @@ function initApp() {
   }
   
   initializeMap();
-  requestLocation();
-  setInterval(requestLocation, 5000);
+  startWatchingLocation();
   
   document.getElementById('btnDraw').onclick = startDrawing;
   document.getElementById('btnFinish').onclick = finishDrawing;
@@ -29,33 +30,73 @@ function initializeMap() {
   map.on('click', handleMapClick);
 }
 
-function requestLocation() {
+function startWatchingLocation() {
   if (!navigator.geolocation) {
-    alert('Geolocation not supported');
+    alert('Geolocation not supported by your browser');
     return;
   }
 
-  navigator.geolocation.getCurrentPosition(
+  // Use watchPosition for continuous tracking
+  watchId = navigator.geolocation.watchPosition(
     (position) => {
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
+      currentLat = position.coords.latitude;
+      currentLng = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
 
-      document.getElementById('coords').textContent = `📍 Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+      // Update coordinates display
+      document.getElementById('coords').textContent = 
+        `📍 ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)} (±${accuracy.toFixed(0)}m)`;
 
+      // Update or create marker
       if (marker) {
-        marker.setLatLng([lat, lng]);
+        marker.setLatLng([currentLat, currentLng]);
       } else {
-        marker = L.marker([lat, lng]).addTo(map);
-        map.setView([lat, lng], 16);
+        marker = L.marker([currentLat, currentLng]).addTo(map);
+        marker.bindPopup('📍 You are here').openPopup();
       }
 
+      // Center map on your location (smooth pan)
+      map.setView([currentLat, currentLng], map.getZoom(), {
+        animate: true,
+        duration: 1
+      });
+
+      // Check boundary if monitoring
       if (isMonitoring) {
-        checkBoundary(lat, lng);
+        checkBoundary(currentLat, currentLng);
       }
     },
-    (error) => console.error('Location error:', error),
-    { enableHighAccuracy: true }
+    (error) => {
+      console.error('Location error:', error);
+      let errorMsg = 'Location error: ';
+      switch(error.code) {
+        case error.PERMISSION_DENIED:
+          errorMsg += 'Permission denied. Please allow location access.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          errorMsg += 'Position unavailable. Check your GPS.';
+          break;
+        case error.TIMEOUT:
+          errorMsg += 'Request timeout. Retrying...';
+          break;
+        default:
+          errorMsg += error.message;
+      }
+      document.getElementById('status').textContent = errorMsg;
+    },
+    { 
+      enableHighAccuracy: true,  // Use GPS
+      maximumAge: 0,             // Don't use cached position
+      timeout: 10000             // 10 second timeout
+    }
   );
+}
+
+function requestLocation() {
+  // Legacy function for compatibility - now handled by watchPosition
+  if (currentLat && currentLng) {
+    return { lat: currentLat, lng: currentLng };
+  }
 }
 
 function handleMapClick(e) {
@@ -138,9 +179,7 @@ function startMonitoring() {
 
   document.getElementById('btnDraw').disabled = true;
   document.getElementById('btnMonitor').disabled = true;
-  document.getElementById('status').textContent = '🔴 Monitoring active - tracking your location...';
-
-  monitorInterval = setInterval(requestLocation, 2000);
+  document.getElementById('status').textContent = '🔴 MONITORING ACTIVE - Tracking your location in real-time...';
 }
 
 function checkBoundary(lat, lng) {
@@ -150,10 +189,21 @@ function checkBoundary(lat, lng) {
   const inside = isPointInPolygon(point, drawnPoints);
 
   if (!inside) {
-    clearInterval(monitorInterval);
     isMonitoring = false;
-    alert('⚠️ Your device has left the boundary and will be wiped clean!');
-    setTimeout(resetApp, 1000);
+    alert('⚠️ ALERT! Your device has left the boundary and will be wiped clean!');
+    document.getElementById('status').textContent = '🚨 BOUNDARY BREACH DETECTED!';
+    
+    // Flash the polygon red
+    polygon.setStyle({ color: '#ff0000', fillColor: '#ff0000', fillOpacity: 0.5 });
+    
+    setTimeout(() => {
+      if (confirm('Device left boundary! Reset app?')) {
+        resetApp();
+      }
+    }, 1000);
+  } else {
+    document.getElementById('status').textContent = 
+      `✅ Inside boundary - Distance to edge: ${getDistanceToEdge(lat, lng).toFixed(0)}m`;
   }
 }
 
@@ -173,6 +223,23 @@ function isPointInPolygon(point, polygonPoints) {
   }
 
   return inside;
+}
+
+function getDistanceToEdge(lat, lng) {
+  if (!drawnPoints || drawnPoints.length < 3) return 0;
+  
+  let minDistance = Infinity;
+  const point = L.latLng(lat, lng);
+  
+  // Calculate distance to each edge of the polygon
+  for (let i = 0; i < drawnPoints.length; i++) {
+    const p1 = L.latLng(drawnPoints[i][0], drawnPoints[i][1]);
+    const p2 = L.latLng(drawnPoints[(i + 1) % drawnPoints.length][0], drawnPoints[(i + 1) % drawnPoints.length][1]);
+    const distance = point.distanceTo(p1);
+    minDistance = Math.min(minDistance, distance);
+  }
+  
+  return minDistance;
 }
 
 function resetApp() {
