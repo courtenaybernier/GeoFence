@@ -237,21 +237,32 @@ function checkBoundary(lat, lng) {
   const inside = isPointInPolygon(point, drawnPoints);
 
   if (!inside) {
+    // Device is OUTSIDE the boundary - trigger alert!
     isMonitoring = false;
-    alert('⚠️ ALERT! Your device has left the boundary and will be wiped clean!');
-    document.getElementById('status').textContent = '🚨 BOUNDARY BREACH DETECTED!';
     
-    // Flash the polygon red
+    // Flash the polygon red to show breach
     polygon.setStyle({ color: '#ff0000', fillColor: '#ff0000', fillOpacity: 0.5 });
     
+    // Show alert message
+    alert('⚠️ ALERT! Your device has left the boundary and will be wiped clean!');
+    document.getElementById('status').textContent = '🚨 BOUNDARY BREACH DETECTED! Device left the safe zone.';
+    
+    // Disable monitoring button
+    document.getElementById('btnMonitor').disabled = true;
+    
     setTimeout(() => {
-      if (confirm('Device left boundary! Reset app?')) {
+      if (confirm('Device left boundary! Reset app and try again?')) {
         resetApp();
+      } else {
+        // Keep the breach state visible
+        document.getElementById('status').textContent = '🚨 BREACH - Click Reset to start over';
       }
-    }, 1000);
+    }, 500);
   } else {
+    // Device is INSIDE the boundary - all good
+    const distance = getDistanceToEdge(lat, lng).toFixed(0);
     document.getElementById('status').textContent = 
-      `✅ Inside boundary - Distance to edge: ${getDistanceToEdge(lat, lng).toFixed(0)}m`;
+      `✅ Inside boundary - ${distance}m from edge`;
   }
 }
 
