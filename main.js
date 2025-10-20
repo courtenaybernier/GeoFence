@@ -247,15 +247,16 @@ function checkBoundary(lat, lng) {
     alert('⚠️ ALERT! Your device has left the boundary and will be wiped clean!');
     document.getElementById('status').textContent = '🚨 BOUNDARY BREACH DETECTED! Device left the safe zone.';
     
-    // Disable monitoring button
+    // Disable monitoring button to prevent restart
     document.getElementById('btnMonitor').disabled = true;
     
+    // Ask user if they want to reset and start over
     setTimeout(() => {
-      if (confirm('Device left boundary! Reset app and try again?')) {
+      if (confirm('⚠️ BOUNDARY BREACH!\n\nYour device left the safe zone.\nMonitoring has been stopped.\n\nWould you like to reset the app and draw a new boundary?')) {
         resetApp();
       } else {
-        // Keep the breach state visible
-        document.getElementById('status').textContent = '🚨 BREACH - Click Reset to start over';
+        // User chose not to reset - keep breach state visible
+        document.getElementById('status').textContent = '🚨 BREACH DETECTED - Monitoring stopped. Click "Reset" button to start over.';
       }
     }, 500);
   } else {
