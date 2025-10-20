@@ -2,6 +2,10 @@
 let map, marker, polygon, drawnPoints = [], isDrawing = false, isMonitoring = false, monitorInterval = null;
 let watchId = null;
 let currentLat = null, currentLng = null;
+let wasInside = null; // Track previous boundary state to detect crossings
+let countdownTimer = null; // Timer for 30-second countdown
+let countdownSeconds = 30; // Countdown duration
+let countdownInterval = null; // Interval for updating countdown display
 
 // Wait for Leaflet to load
 function initApp() {
@@ -219,6 +223,15 @@ function startMonitoring() {
   }
 
   isMonitoring = true;
+  
+  // Initialize wasInside based on current position
+  if (currentLat && currentLng) {
+    const point = L.latLng(currentLat, currentLng);
+    wasInside = isPointInPolygon(point, drawnPoints);
+    console.log('Starting monitoring. Initial position:', wasInside ? 'INSIDE' : 'OUTSIDE', 'boundary');
+  } else {
+    wasInside = null;
+  }
 
   polygon.setStyle({
     color: '#f44336',
@@ -236,35 +249,82 @@ function checkBoundary(lat, lng) {
   const point = L.latLng(lat, lng);
   const inside = isPointInPolygon(point, drawnPoints);
 
-  if (!inside) {
-    // Device is OUTSIDE the boundary - trigger alert!
-    isMonitoring = false;
+  console.log('Checking boundary:', { inside, wasInside, lat, lng });
+
+  // Check if boundary status changed (crossing detected)
+  if (wasInside !== null && wasInside !== inside) {
+    console.log('BOUNDARY CROSSING DETECTED! Was:', wasInside ? 'INSIDE' : 'OUTSIDE', '→ Now:', inside ? 'INSIDE' : 'OUTSIDE');
     
-    // Flash the polygon red to show breach
-    polygon.setStyle({ color: '#ff0000', fillColor: '#ff0000', fillOpacity: 0.5 });
-    
-    // Show alert message
-    alert('⚠️ ALERT! Your device has left the boundary and will be wiped clean!');
-    document.getElementById('status').textContent = '🚨 BOUNDARY BREACH DETECTED! Device left the safe zone.';
-    
-    // Disable monitoring button to prevent restart
-    document.getElementById('btnMonitor').disabled = true;
-    
-    // Ask user if they want to reset and start over
-    setTimeout(() => {
-      if (confirm('⚠️ BOUNDARY BREACH!\n\nYour device left the safe zone.\nMonitoring has been stopped.\n\nWould you like to reset the app and draw a new boundary?')) {
-        resetApp();
-      } else {
-        // User chose not to reset - keep breach state visible
-        document.getElementById('status').textContent = '🚨 BREACH DETECTED - Monitoring stopped. Click "Reset" button to start over.';
-      }
-    }, 500);
-  } else {
-    // Device is INSIDE the boundary - all good
+    if (!inside) {
+      // Device just LEFT the boundary - trigger alert and start countdown!
+      console.log('Device LEFT boundary - starting countdown');
+      polygon.setStyle({ color: '#ff0000', fillColor: '#ff0000', fillOpacity: 0.3 });
+      alert('⚠️ ALERT! Your device has left the boundary and will be wiped clean in 30 seconds!');
+      startCountdown();
+    } else {
+      // Device just RE-ENTERED the boundary - cancel wipe and show success!
+      console.log('Device RE-ENTERED boundary - stopping countdown');
+      polygon.setStyle({ color: '#00ff00', fillColor: '#00ff00', fillOpacity: 0.3 });
+      stopCountdown();
+      alert('✅ SAFE! Device has re-entered the boundary. Wipe has been cancelled!');
+      document.getElementById('status').textContent = '✅ BACK INSIDE - Wipe cancelled, device is safe';
+    }
+  }
+  
+  // Update status display
+  if (inside) {
     const distance = getDistanceToEdge(lat, lng).toFixed(0);
     document.getElementById('status').textContent = 
       `✅ Inside boundary - ${distance}m from edge`;
+  } else {
+    // Show countdown if active
+    if (countdownTimer) {
+      const distance = getDistanceToEdge(lat, lng).toFixed(0);
+      document.getElementById('status').textContent = 
+        `🚨 OUTSIDE BOUNDARY - WIPE IN ${countdownSeconds} SECONDS! Re-enter now! (${distance}m from edge)`;
+    } else {
+      const distance = getDistanceToEdge(lat, lng).toFixed(0);
+      document.getElementById('status').textContent = 
+        `🚨 Outside boundary - ${distance}m from edge`;
+    }
   }
+  
+  // Remember current state for next check
+  wasInside = inside;
+}
+
+function startCountdown() {
+  // Clear any existing countdown
+  stopCountdown();
+  
+  // Reset to 30 seconds
+  countdownSeconds = 30;
+  
+  // Start countdown interval (update every second)
+  countdownInterval = setInterval(() => {
+    countdownSeconds--;
+    
+    if (countdownSeconds <= 0) {
+      // Countdown finished - trigger wipe
+      stopCountdown();
+      alert('💀 TIME EXPIRED! Device is being wiped clean!');
+      document.getElementById('status').textContent = '💀 DEVICE WIPED - Failed to return to boundary in time';
+      isMonitoring = false;
+      polygon.setStyle({ color: '#000000', fillColor: '#000000', fillOpacity: 0.5 });
+    }
+  }, 1000); // Update every 1 second
+}
+
+function stopCountdown() {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+  if (countdownTimer) {
+    clearTimeout(countdownTimer);
+    countdownTimer = null;
+  }
+  countdownSeconds = 30;
 }
 
 function isPointInPolygon(point, polygonPoints) {
@@ -307,10 +367,14 @@ function resetApp() {
     clearInterval(monitorInterval);
     monitorInterval = null;
   }
+  
+  // Clear countdown timers
+  stopCountdown();
 
   isDrawing = false;
   isMonitoring = false;
   drawnPoints = [];
+  wasInside = null; // Reset boundary state tracking
 
   // Clear all layers except base map and marker
   map.eachLayer((layer) => {
