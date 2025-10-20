@@ -300,6 +300,9 @@ function startCountdown() {
   // Reset to 30 seconds
   countdownSeconds = 30;
   
+  // Mark that countdown is active
+  countdownTimer = true;
+  
   // Start countdown interval (update every second)
   countdownInterval = setInterval(() => {
     countdownSeconds--;
@@ -307,7 +310,7 @@ function startCountdown() {
     if (countdownSeconds <= 0) {
       // Countdown finished - trigger wipe
       stopCountdown();
-      alert('💀 TIME EXPIRED! Device is being wiped clean!');
+      alert('💀 TIME EXPIRED! Device is being wiped clean NOW!');
       document.getElementById('status').textContent = '💀 DEVICE WIPED - Failed to return to boundary in time';
       isMonitoring = false;
       polygon.setStyle({ color: '#000000', fillColor: '#000000', fillOpacity: 0.5 });
@@ -320,10 +323,7 @@ function stopCountdown() {
     clearInterval(countdownInterval);
     countdownInterval = null;
   }
-  if (countdownTimer) {
-    clearTimeout(countdownTimer);
-    countdownTimer = null;
-  }
+  countdownTimer = null; // Clear the countdown active flag
   countdownSeconds = 30;
 }
 
